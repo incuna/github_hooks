@@ -82,8 +82,9 @@ class GithubApi(object):
             return
         repo_url = self.get_user_url() + ls_args[0] + '/hooks'
         r = self.get_response(repo_url, 'get')
-        content = json.loads(r.content)
-        self.write(json.dumps(content, indent=2))
+        hooks = json.loads(r.content)
+        output = ['%d: %s (%s)' % (hook['id'], hook['name'], ','.join(sorted(hook['events']))) for hook in hooks]
+        self.write(' '.join(output))
         self.write('\n')
 
     def get_response(self, url, method):
