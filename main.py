@@ -73,47 +73,53 @@ class GithubApi(object):
         try:
             action = self.args.pop(0)
             if action == 'ls':
-                self.ls()
+                repo_name = self.args.pop(0)
+                self.ls(repo_name)
             elif action == 'show':
-                self.show()
+                repo_name = self.args.pop(0)
+                hook_id = self.args.pop(0)
+                self.show(repo_name, hook_id)
             elif action == 'add':
-                self.add()
+                repo_name = self.args.pop(0)
+                hook_type = self.args.pop(0)
+                events = self.args.pop(0).split(',')
+                config = self.args.pop(0).split(',') if self.args else []
+                config = dict([opt.split(':', 1) for opt in config])
+                self.add(repo_name, hook_type, events, config)
             elif action == 'rm':
-                self.rm()
+                repo_name = self.args.pop(0)
+                hook_id = self.args.pop(0)
+                self.rm(repo_name, hook_id)
             elif action == 'edit':
-                self.edit()
+                repo_name = self.args.pop(0)
+                hook_id = self.args.pop(0)
+                events = self.args.pop(0).split(',')
+                config = self.args.pop(0).split(',') if self.args else []
+                config = dict([opt.split(':', 1) for opt in config])
+                self.edit(repo_name, hook_id, events, config)
             else:
                 self.write('UNKNOWN ACTION %s\n' % action)
         except self.APIError as e:
             self.write(e.message)
             self.write('\n')
 
-    def ls(self):
+    def ls(self, repo_name):
         """List the hooks on a repository.
 
         USAGE: ls REPONAME
         """
-        if not self.args:
-            self.usage('ls')
-            return
-        repo_url = self.get_repo_url(self.args[0])
+        repo_url = self.get_repo_url(repo_name)
         r = self.get_response(repo_url, 'get')
         hooks = json.loads(r.content)
         output = ['%d: %s (%s)' % (hook['id'], hook['name'], ','.join(sorted(hook['events']))) for hook in hooks]
         self.write(' '.join(output) if output else 'No hooks found.')
         self.write('\n')
 
-    def add(self):
+    def add(self, repo_name, hook_type, events, config={}):
         """Add a hook.
 
         USAGE: add REPONAME TYPE EVENT[,EVENT...] [OPTION:VALUE[,OPTION:VALUE...]]
         """
-        repo_name = self.args.pop(0)
-        hook_type = self.args.pop(0)
-        events = self.args.pop(0).split(',')
-        config = self.args.pop(0).split(',') if self.args else []
-        config = dict([opt.split(':', 1) for opt in config])
-
         repo_url = self.get_repo_url(repo_name)
         options = {
             'name': hook_type,
@@ -125,30 +131,21 @@ class GithubApi(object):
         output = 'New hook of with id %s created.\n' % hook['id']
         self.write(output)
 
-    def show(self):
+    def show(self, repo_name, hook_id)
         """Show a hook in detail.
 
         USAGE: show REPONAME ID
         """
-        repo_name = self.args.pop(0)
-        hook_id = self.args.pop(0)
-
         hook_url = self.get_hook_url(repo_name, hook_id)
         r = self.get_response(hook_url, 'get')
         self.write(r.content)
         self.write('\n')
 
-    def edit(self):
+    def edit(self, repo_name, hook_id, events, config):
         """Edit a hook.
 
         USAGE: edit REPONAME ID EVENT[,EVENT...] [OPTION:VALUE[,OPTION:VALUE...]]
         """
-        repo_name = self.args.pop(0)
-        hook_id = self.args.pop(0)
-        events = self.args.pop(0).split(',')
-        config = self.args.pop(0).split(',') if self.args else []
-        config = dict([opt.split(':', 1) for opt in config])
-
         hook_url = self.get_hook_url(repo_name, hook_id)
         r = self.get_response(hook_url, 'get')
         options = json.loads(r.content)
@@ -162,14 +159,11 @@ class GithubApi(object):
         r = self.get_response(hook_url, 'patch', data=json.dumps(options))
         self.write('Hook %s updated\n' % hook_id)
 
-    def rm(self):
+    def rm(self, repo_name, hook_id):
         """Remove a hook.
 
         USAGE: rm REPONAME ID
         """
-        repo_name = self.args.pop(0)
-        hook_id = self.args.pop(0)
-
         hook_url = self.get_hook_url(repo_name, hook_id)
         r = self.get_response(hook_url, 'delete')
         self.write('Hook with id %s deleted.\n' % hook_id)
