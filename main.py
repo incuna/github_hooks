@@ -60,13 +60,26 @@ class GithubApi(object):
     def get_user_url(self):
         return self.url_base + self.config['github']['user'] + '/'
 
+    def get_repo_url(self, repo_name):
+        return self.get_user_url() + repo_name + '/hooks'
+
+    def get_hook_url(self, repo_name, hook_id):
+        return self.get_repo_url(repo_name) + '/' + hook_id
+
     def run(self, *args):
-        self.args = args
+        self.args = list(args)
         if not args:
             return self.usage()
         try:
-            if args[0] == 'ls':
+            action = self.args.pop(0)
+            if action == 'ls':
                 self.ls()
+            elif action == 'add':
+                self.add()
+            elif action == 'rm':
+                self.rm()
+            else:
+                self.write('UNKNOWN ACTION %s' % action)
         except self.APIError as e:
             self.write(e.message)
             self.write('\n')
@@ -76,20 +89,53 @@ class GithubApi(object):
 
         USAGE: ls REPONAME
         """
-        ls_args = self.args[1:]
-        if not ls_args:
+        if not self.args:
             self.usage('ls')
             return
-        repo_url = self.get_user_url() + ls_args[0] + '/hooks'
+        repo_url = self.get_repo_url(self.args[0])
         r = self.get_response(repo_url, 'get')
         hooks = json.loads(r.content)
         output = ['%d: %s (%s)' % (hook['id'], hook['name'], ','.join(sorted(hook['events']))) for hook in hooks]
-        self.write(' '.join(output))
+        self.write(' '.join(output) if output else 'No hooks found.')
         self.write('\n')
 
-    def get_response(self, url, method):
-        r = getattr(requests, method)(url, auth=self.get_auth())
-        if not r.status_code == 200:
+    def add(self):
+        """Add a hook.
+
+        USAGE: add REPONAME TYPE EVENT[,EVENT...] [OPTION:VALUE[,OPTION:VALUE...]]
+        """
+        repo_name = self.args.pop(0)
+        hook_type = self.args.pop(0)
+        events = self.args.pop(0).split(',')
+        options = self.args.pop(0).split(',') if self.args else []
+        options = dict([opt.split(':', 1) for opt in options])
+
+        repo_url = self.get_repo_url(repo_name)
+        options = {
+            'name': hook_type,
+            'events': events,
+            'config': options,
+        }
+        r = self.get_response(repo_url, 'post', data=json.dumps(options))
+        hook = json.loads(r.content)
+        output = 'New hook of with id %s created.\n' % hook['id']
+        self.write(output)
+
+    def rm(self):
+        """Remove a hook.
+
+        USAGE: rm REPONAME ID
+        """
+        repo_name = self.args.pop(0)
+        hook_id = self.args.pop(0)
+
+        hook_url = self.get_hook_url(repo_name, hook_id)
+        r = self.get_response(hook_url, 'delete')
+        self.write('Hook with id %s deleted.\n' % hook_id)
+
+    def get_response(self, url, method, **kwargs):
+        r = getattr(requests, method)(url, auth=self.get_auth(), **kwargs)
+        if r.status_code not in [200, 201, 204]:
             raise self.APIError('APIError: %d\n%s' % (r.status_code, r.content))
         return r
 
