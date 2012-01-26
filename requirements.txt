@@ -1,0 +1,2 @@
+requests==0.10.1
+pyyaml==3.10
