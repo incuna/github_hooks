@@ -131,7 +131,7 @@ class GithubApi(object):
         output = 'New hook of with id %s created.\n' % hook['id']
         self.write(output)
 
-    def show(self, repo_name, hook_id)
+    def show(self, repo_name, hook_id):
         """Show a hook in detail.
 
         USAGE: show REPONAME ID
